@@ -1,1 +1,1 @@
-egg
+alias wrap_args='f(){ echo before "$@" after;  unset -f f; }; f'
