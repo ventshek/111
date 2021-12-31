@@ -1,5 +1,17 @@
-!#/bin/bash
-cryptsetup --cipher=aes-xts-plain64 --offset=0 --key-file=/dev/sdc --key-size=512 open --type plain /dev/sda cryptlvm
+#!/bin/bash
+
+main_fn () {
+sfdisk --quiet -- /dev/sdb <<-'EOF'
+	label:gpt
+	type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B,size=512MiB,name=efi
+	type=933AC7E1-2EB4-4F13-B844-0E14E2AEF915,name=keys
+EOF
+
+mkfs.fat -F32 /dev/sdb1
+mkfs.ext4 /dev/sdb2
+
+cryptsetup --cipher=aes-xts-plain64 --offset=0 --key-file=/dev/sdb2 --key-size=512 open --type plain /dev/sda cryptlvm
+
 pvcreate /dev/mapper/cryptlvm
 vgcreate MyVolGroup /dev/mapper/cryptlvm
 lvcreate -L 5G MyVolGroup -n root
@@ -12,6 +24,97 @@ mkdir /mnt/home
 mount /dev/MyVolGroup/home /mnt/home
 mkswap /dev/MyVolGroup/swap
 swapon /dev/MyVolGroup/swap
+mkdir /mnt/boot
+mount /dev/sdb1 /mnt/boot
+
+# Pacstrap all packages
+pacstrap /mnt --quiet --noprogressbar --noconfirm base-devel linux linux-firmware \
+mkinitcpio lvm2 vi dhcpcd wpa_supplicant dhcpcd open-vm-tools xf86-video-vmware nano \
+grub efibootmgr efitools sudo
+
+genfstab -U /mnt >> /mnt/etc/fstab
+}
+chroot_fn () {
+cat >> /mnt/II.sh <<'ENT'
+# Edit Mkinitcpio Hooks.
+sed -i 's/HOOKS=(base udev autodetect modconf block filesystems keyboard fsck)/HOOKS=(base udev autodetect keyboard keymap consolefont modconf block encrypt lvm2 filesystems fsck)/' /etc/mkinitcpio.conf
+# User Setup.
+sed --in-place 's/^#\s*\(%wheel\s\+ALL=(ALL)\s\+NOPASSWD:\s\+ALL\)/\1/' /etc/sudoers
+useradd -m -d /home/user -G wheel -s /bin/bash user
+echo root:fj | chpasswd
+echo user:fj | chpasswd
+
+# Set local time
+ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime 
+# Write to /etc/locale.gen
+sed -i 's/#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen  &> /dev/nul
+# Generate locale
+locale-gen
+# Edit local conf
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
+# Write hostname
+echo "pc" >> /etc/hostname
+
+
+# Rewrite Grub for encryption 
+rm /etc/default/grub
+cat > /etc/default/grub <<EOF
+		# GRUB boot loader configuration
+
+		GRUB_DEFAULT=0
+		GRUB_TIMEOUT=5
+		GRUB_DISTRIBUTOR="Arch"
+		GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"
+		GRUB_CMDLINE_LINUX="... cryptdevice=UUID=$uuidsda:cryptlvm cryptkey=UUID=$uuidsdb2:0:64 crypto=:aes-xts-plain64:512:0:"
+
+		# Preload both GPT and MBR modules so that they are not missed
+		GRUB_PRELOAD_MODULES="part_gpt part_msdos"
+
+		# Uncomment to enable booting from LUKS encrypted devices
+		GRUB_ENABLE_CRYPTODISK=y
+
+		# Set to 'countdown' or 'hidden' to change timeout behavior,
+		# press ESC key to display menu.
+		GRUB_TIMEOUT_STYLE=menu
+
+		# Uncomment to use basic console
+		GRUB_TERMINAL_INPUT=console
+
+		# Uncomment to disable graphical terminal
+		#GRUB_TERMINAL_OUTPUT=console
+
+		# The resolution used on graphical terminal
+		# note that you can use only modes which your graphic card supports via VBE
+		# you can see them in real GRUB with the command vbeinfo
+		GRUB_GFXMODE=auto
+
+		# Uncomment to allow the kernel use the same resolution used by grub
+		GRUB_GFXPAYLOAD_LINUX=keep
+
+		# Uncomment if you want GRUB to pass to the Linux kernel the old parameter
+		# format "root=/dev/xxx" instead of "root=/dev/disk/by-uuid/xxx"
+		#GRUB_DISABLE_LINUX_UUID=true
+
+		# Uncomment to disable generation of recovery mode menu entries
+		GRUB_DISABLE_RECOVERY=true
+EOF
+# Run Mkinitcpio again
+mkinitcpio -p linux
+
+# Install Grub
+grub-install --target=x86_64-efi --efi-directory=/efi
+
+# Create Grub config
+grub-mkconfig -o /boot/grub/grub.cfg
+
+#grub-install --recheck /dev/sdb
+ENT
+}
+main_fn
+exit 0
+
+
+
 #HOOKS=(base udev autodetect keyboard keymap consolefont modconf block encrypt lvm2 filesystems fsck)
 #cryptdevice=/dev/disk/by-id/disk-ID-of-sda:cryptlvm cryptkey=/dev/disk/by-id/disk-ID-of-sdc:0:64 crypto=:aes-xts-plain64:512:0:
 #grub-install --recheck /dev/sdb
