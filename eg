@@ -55,7 +55,8 @@ echo "LANG=en_US.UTF-8" > /etc/locale.conf
 # Write hostname
 echo "pc" >> /etc/hostname
 
-
+uuidsda=$(blkid -o value -s UUID /dev/mapper/cryptlvm)
+uuidsdb2=$(blkid -o value -s UUID /dev/sdb2)
 # Rewrite Grub for encryption 
 rm /etc/default/grub
 cat > /etc/default/grub <<EOF
@@ -102,20 +103,13 @@ EOF
 mkinitcpio -p linux
 
 # Install Grub
-grub-install --target=x86_64-efi --efi-directory=/efi
+#grub-install --target=x86_64-efi --efi-directory=/efi
 
 # Create Grub config
 grub-mkconfig -o /boot/grub/grub.cfg
 
-#grub-install --recheck /dev/sdb
+grub-install --recheck /dev/sdb
 ENT
 }
-main_fn
-exit 0
 
-
-
-#HOOKS=(base udev autodetect keyboard keymap consolefont modconf block encrypt lvm2 filesystems fsck)
-#cryptdevice=/dev/disk/by-id/disk-ID-of-sda:cryptlvm cryptkey=/dev/disk/by-id/disk-ID-of-sdc:0:64 crypto=:aes-xts-plain64:512:0:
-#grub-install --recheck /dev/sdb
 exit 0
