@@ -1,6 +1,8 @@
 #!/bin/bash
 
-main_fn () {
+
+
+fm_fn () {
 sfdisk --quiet -- /dev/sdb <<-'EOF'
 	label:gpt
 	type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B,size=512MiB,name=efi
@@ -24,9 +26,13 @@ mkdir /mnt/home
 mount /dev/MyVolGroup/home /mnt/home
 mkswap /dev/MyVolGroup/swap
 swapon /dev/MyVolGroup/swap
+mkdir /dev/sdb1 /efi
+mount /dev/sdb1 /mnt/efi
 mkdir /mnt/boot
 mount /dev/sdb1 /mnt/boot
+}
 
+pk_fn () {
 # Pacstrap all packages
 pacstrap /mnt --quiet --noprogressbar --noconfirm base-devel linux linux-firmware \
 mkinitcpio lvm2 vi dhcpcd wpa_supplicant dhcpcd open-vm-tools xf86-video-vmware nano \
@@ -34,6 +40,8 @@ grub efibootmgr efitools sudo
 
 genfstab -U /mnt >> /mnt/etc/fstab
 }
+
+
 chroot_fn () {
 cat >> /mnt/II.sh <<'ENT'
 # Edit Mkinitcpio Hooks.
@@ -55,8 +63,7 @@ echo "LANG=en_US.UTF-8" > /etc/locale.conf
 # Write hostname
 echo "pc" >> /etc/hostname
 
-uuidsda=$(blkid -o value -s UUID /dev/mapper/cryptlvm)
-uuidsdb2=$(blkid -o value -s UUID /dev/sdb2)
+
 # Rewrite Grub for encryption 
 rm /etc/default/grub
 cat > /etc/default/grub <<EOF
@@ -103,12 +110,12 @@ EOF
 mkinitcpio -p linux
 
 # Install Grub
-#grub-install --target=x86_64-efi --efi-directory=/efi
+grub-install --target=x86_64-efi --efi-directory=/efi
 
 # Create Grub config
 grub-mkconfig -o /boot/grub/grub.cfg
 
-grub-install --recheck /dev/sdb
+#grub-install --recheck /dev/sdb
 ENT
 }
 
