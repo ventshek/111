@@ -1,0 +1,40 @@
+# Maintainer: George <ventshek@gmail.com>
+pkgname=exampleapp
+pkgver=1.1
+pkgrel=1
+pkgdesc="Just a test."
+arch=('i686' 'pentium4' 'x86_64' 'arm' 'armv7h' 'armv6h' 'aarch64')
+url=""
+options=(!lto)
+license=('GPL3')
+depends=(
+  'pacman>5'
+  'git'
+  'gcc'
+  'gtk4'
+)
+optdepends=(
+  'sudo: privilege elevation'
+  'doas: privilege elevation'
+)
+makedepends=('gcc>=11.1.0')
+options=(!lto)
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/Jguer/yay/archive/v${pkgver}.tar.gz")
+sha256sums=('a1cc29156d75ed3f337aa2fd49d452a4a600281c1641eeb24173a2fa8c591adf')
+
+build() {
+  export GOPATH="$srcdir"/gopath
+  export CGO_CPPFLAGS="${CPPFLAGS}"
+  export CGO_CFLAGS="${CFLAGS}"
+  export CGO_CXXFLAGS="${CXXFLAGS}"
+  export CGO_LDFLAGS="${LDFLAGS}"
+  export CGO_ENABLED=1
+
+  cd "$srcdir/$pkgname-$pkgver"
+  make VERSION=$pkgver DESTDIR="$pkgdir" PREFIX="/usr" build
+}
+
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+  make VERSION=$pkgver DESTDIR="$pkgdir" PREFIX="/usr" install
+}

@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"gtk.h": "c",
+			"example-3": "cpp"
+		}
+	}
+}
